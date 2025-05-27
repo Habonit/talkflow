@@ -1,0 +1,15 @@
+#!/bin/bash
+
+COMMIT_MSG_FILE=$1
+
+echo "훅 실행됨 - 현재 경로: $(pwd)" >> ~/hook_debug.log
+
+DIFF=$(git diff --cached | head -c 3000)
+PYTHON=$(which python)
+
+echo "파이썬 경로: $PYTHON" >> ~/hook_debug.log
+echo "스크립트 실행 중..." >> ~/hook_debug.log
+
+"$PYTHON" "$(git rev-parse --show-toplevel)/scripts/ai_commit_message.py" "$DIFF" > "$COMMIT_MSG_FILE"
+
+echo "메시지 저장 완료" >> ~/hook_debug.log
