@@ -1,0 +1,74 @@
+version: "3.9"
+
+services:
+  stt_server_1:
+    build:
+      context: .
+      dockerfile: docker/dockerfile
+      args:
+        APP_PORT: ${STT_PORT_1}
+    container_name: stt_server_1
+    ports:
+      - "${STT_PORT_1}:${STT_PORT_1}"
+    runtime: nvidia
+    env_file:
+      - .env
+    environment:
+      - APP_PORT=${STT_PORT_1}
+      - CUDA_VISIBLE_DEVICES=${GPU_1}
+    volumes:
+      - ./models:/root/.cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # stt_server_2:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/dockerfile
+  #     args:
+  #       APP_PORT: ${STT_PORT_2}
+  #   container_name: stt_server_2
+  #   ports:
+  #     - "${STT_PORT_2}:${STT_PORT_2}"
+  #   runtime: nvidia
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - APP_PORT=${STT_PORT_2}
+  #     - CUDA_VISIBLE_DEVICES=${GPU_2}
+  #   volumes:
+  #     - ./models:/root/.cache
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8002/docs"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # stt_server_3:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/dockerfile
+  #     args:
+  #       APP_PORT: ${STT_PORT_3}
+  #   container_name: stt_server_3
+  #   ports:
+  #     - "${STT_PORT_3}:${STT_PORT_3}"
+  #   runtime: nvidia
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - APP_PORT=${STT_PORT_3}
+  #     - CUDA_VISIBLE_DEVICES=${GPU_3}
+  #   volumes:
+  #     - ./models:/root/.cache
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8003/docs"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
