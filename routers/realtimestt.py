@@ -1,3 +1,5 @@
+from transformers import pipeline
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from RealtimeSTT import AudioToTextRecorder
 import numpy as np
@@ -5,8 +7,16 @@ from scipy.signal import resample
 import threading
 import asyncio
 import json
+import time
 
 router = APIRouter()
+pipe = pipeline(
+    "text-classification",
+    model="smilegate-ai/kor_unsmile",
+    device=0,  # CUDA:0
+    return_all_scores=True,
+    function_to_apply="softmax"
+)
 
 @router.websocket("/ws/stt")
 async def stt_websocket(websocket: WebSocket):
@@ -22,6 +32,33 @@ async def stt_websocket(websocket: WebSocket):
             await websocket.send_text(message)
         except WebSocketDisconnect:
             print("Client disconnected")
+            
+    def handle_transcription(text, pipe):
+        start_time = time.time()
+        scores = {d['label']: d['score'] for d in pipe(text)[0]}
+        label = "욕설 여부: "
+
+        threshold_clean = 0.4
+        threshold_hatespeech = 0.2
+        if scores['clean'] < threshold_clean:
+                label += "o, "
+                prioritize = dict(
+                        sorted(
+                                (item for item in scores.items() if item[0] != 'clean'),
+                                key=lambda x: x[1],
+                                reverse=True
+                        )[:2]
+                )
+                for k, v in prioritize.items():
+                        if v > threshold_hatespeech:
+                                label += f"{k}: {v:.2f}"
+                                
+        else:
+                label += f"x, 정상: {scores['clean']: .2f}"
+        end_time = time.time()
+        latency =end_time - start_time
+        label += f", 처리 시간: {latency:.2f}초"
+        return label, 
 
     def text_detected(text: str):
         asyncio.run_coroutine_threadsafe(
@@ -42,11 +79,13 @@ async def stt_websocket(websocket: WebSocket):
         while is_running:
             try:
                 full_sentence = recorder.text()
+                label = handle_transcription(full_sentence, pipe)
                 if full_sentence:
                     asyncio.run_coroutine_threadsafe(
                         send_to_client(json.dumps({
                             'type': 'fullSentence',
-                            'text': full_sentence
+                            'text': full_sentence,
+                            'label': label
                         })), loop
                     )
                     print(f"\rSentence: {full_sentence}")

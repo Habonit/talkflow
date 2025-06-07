@@ -3,8 +3,10 @@ fastapi
 uvicorn
 
 # RealtimeSTT dependencies
-torch==2.5.1+cu121
-torchaudio==2.5.1
+torch 
+torchvision 
+torchaudio
+transformers
 faster-whisper
 openwakeword
 numpy<2.0.0
@@ -18,3 +20,4 @@ webrtcvad-wheels
 halo
 soundfile
 huggingface_hub[hf_xet]
+tqdm==4.65.0

@@ -9,9 +9,6 @@ RUN apt-get update && \
         ffmpeg portaudio19-dev git && \
     rm -rf /var/lib/apt/lists/*
 
-# CUDA 12.1용 PyTorch
-RUN pip install torch==2.5.1+cu121 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install RealtimeSTT --no-deps
