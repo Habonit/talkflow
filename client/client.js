@@ -6,6 +6,31 @@ let fullSentences = [];
 
 const serverCheckInterval = 5000;
 
+function generateUUID() {
+    if (crypto.randomUUID) {
+        return crypto.randomUUID(); // 최신 브라우저
+    }
+    // 구형 브라우저 호환
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        let r = Math.random() * 16 | 0,
+            v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+function getFormattedTimestamp() {
+    const now = new Date();
+    const YYYY = now.getFullYear();
+    const MM = String(now.getMonth() + 1).padStart(2, '0'); // 월은 0부터 시작
+    const DD = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    return `${YYYY}${MM}${DD}${hh}${mm}`;
+}
+
+const sessionId = generateUUID();
+const userId = "user_abc123";
+
 function setupWebSocket() {
     socket = new WebSocket(STT_SERVER_URL);
 
@@ -94,7 +119,12 @@ navigator.mediaDevices.getUserMedia({ audio: true })
             }
 
             if (socket && socket.readyState === WebSocket.OPEN) {
-                let metadata = JSON.stringify({ sampleRate: audioContext.sampleRate });
+                let metadata = JSON.stringify({ 
+                    sampleRate: audioContext.sampleRate,
+                    timestamp: getFormattedTimestamp(),
+                    sessionId: sessionId,
+                    userId: userId
+                 });
                 let metadataBytes = new TextEncoder().encode(metadata);
                 let metadataLength = new ArrayBuffer(4);
                 let metadataLengthView = new DataView(metadataLength);
