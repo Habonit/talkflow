@@ -1,22 +1,34 @@
+# core
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from transformers import pipeline
-from loguru import logger
-
-from RealtimeSTT import AudioToTextRecorder
-import numpy as np
-from scipy.signal import resample
+import subprocess
 import threading
 import asyncio
+
+# sound
+from RealtimeSTT import AudioToTextRecorder    
+from transformers import pipeline
+from scipy.signal import resample    
+import soundfile as sf
+
+# utils
+from datetime import datetime    
+from loguru import logger
+from pathlib import Path
+import numpy as np
+import redis
 import json
 import time
 import os
-import redis
 
 # 로그 설정
 logger.add("logs/stt_server.log", rotation="10 MB", level="DEBUG", enqueue=True)
 logger.info("STT WebSocket server initializing...")
 
 router = APIRouter()
+
+# 경로 미리 지정
+AUDIO_SAVE_DIR = Path("/app/audio")
+AUDIO_SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
 # 욕설 감지 파이프라인
 pipe = pipeline(
@@ -48,7 +60,14 @@ async def stt_websocket(websocket: WebSocket):
     recorder_ready = threading.Event()
     is_running = True
     recorder = None
-
+    
+    # --- 최초 metadata 저장용 변수 선언 ---
+    session_id = None
+    user_id = None
+    file_dir_path = None
+    metadata_initialized = False
+    filepath_initialized = False
+    
     async def send_to_client(message: str):
         try:
             await websocket.send_text(message)
@@ -94,7 +113,7 @@ async def stt_websocket(websocket: WebSocket):
         # logger.info(f"[Realtime] {text}")
 
     def run_recorder():
-        nonlocal recorder, is_running
+        nonlocal recorder, is_running, filepath_initialized, file_dir_path
         logger.info("Initializing RealtimeSTT...")
         recorder = AudioToTextRecorder(**recorder_config)
         logger.info("RealtimeSTT initialized")
@@ -103,7 +122,8 @@ async def stt_websocket(websocket: WebSocket):
         while is_running:
             try:
                 start_time = time.time()
-                full_sentence = recorder.text()
+                full_sentence = recorder.text()                
+                                
                 end_time = time.time()
                 stt_latency = end_time - start_time
                 label = handle_transcription(full_sentence, pipe)
@@ -113,24 +133,44 @@ async def stt_websocket(websocket: WebSocket):
                             'type': 'fullSentence',
                             'text': full_sentence,
                             'stt_latency': stt_latency,
-                            'label': label
+                            'label': label,
+                            "session_id": session_id,
+                            "user_id": user_id,
+                            "timestamp": int(end_time)
                         })), loop
                     )
                     logger.info(f"[Sentence] {full_sentence}")
                     logger.info(f"[Label] {label}")
                     logger.info(f"[Stt Latency] {stt_latency}")
                     
-                    # TODO: redis 테스트 중, pub, sub로, 혹은 lpush하는 걸로로 저장하는 것 검토
+                    # TODO: redis 테스트 중, pub, sub로, 혹은 lpush하는 걸로 저장하는 것 검토
                     data = {
+                        'type': 'fullSentence',
                         "text": full_sentence,
                         "label": label,
-                        "timestamp": int(time.time()),
-                        "stt_latency": stt_latency
+                        "timestamp": int(end_time),
+                        "stt_latency": stt_latency,
+                        "session_id": session_id,
+                        "user_id": user_id,
                     }   
                     redis_client.lpush("stt:sentences", json.dumps(data))
                     redis_client.publish("stt:sentences", json.dumps(data))
                     
                     logger.info("Redis 발행 성공")
+                    
+                # TODO: 녹음된 오디오를 파일로 저장
+                audio_array = recorder.audio
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                filename = f"{user_id}_{timestamp}.wav"
+                if not filepath_initialized:
+                    file_dir_path = AUDIO_SAVE_DIR / session_id 
+                    file_dir_path.mkdir(parents=True, exist_ok=True)
+                    filepath_initialized = True
+                filepath = file_dir_path / filename
+
+                sf.write(str(filepath), audio_array, samplerate=16000)
+                logger.info(f"Audio saved to {filepath}") 
  
             except Exception as e:
                 logger.error(f"Error in recorder thread: {e}")
@@ -145,6 +185,42 @@ async def stt_websocket(websocket: WebSocket):
         except Exception as e:
             print(f"Error in resampling: {e}")
             return audio_data
+
+    def merge_session_audio():
+        if not file_dir_path or not file_dir_path.exists():
+            logger.warning("No audio chunks found for merging.")
+            return
+
+        wav_files = sorted(file_dir_path.glob("*.wav"), key=lambda x: x.name)
+        if not wav_files:
+            logger.warning("No wav files to merge in session dir.")
+            return
+
+        logger.info(f"Merging {len(wav_files)} audio chunks from: {file_dir_path}")
+
+        # ffmpeg용 concat list 파일 생성
+        concat_list_path = file_dir_path / "concat_list.txt"
+        with open(concat_list_path, "w", encoding="utf-8") as f:
+            for wav in wav_files:
+                f.write(f"file '{wav.resolve()}'\n")
+
+        output_path = AUDIO_SAVE_DIR / session_id / f"{session_id}_merged.wav"
+
+        # ffmpeg 명령어 실행
+        cmd = [
+            "ffmpeg",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(concat_list_path),
+            "-c", "copy",
+            str(output_path)
+        ]
+
+        try:
+            subprocess.run(cmd, check=True)
+            logger.info(f"Final merged audio saved at: {output_path}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"ffmpeg merge failed: {e}")
 
     recorder_config = {
         'spinner': False,
@@ -177,6 +253,13 @@ async def stt_websocket(websocket: WebSocket):
                 metadata_length = int.from_bytes(message[:4], byteorder='little')
                 metadata_json = message[4:4 + metadata_length].decode('utf-8')
                 metadata = json.loads(metadata_json)
+                
+                if not metadata_initialized:
+                    session_id = metadata.get('sessionId', 'unknown_session')
+                    user_id = metadata.get('userId', 'unknown_user')
+                    metadata_initialized = True
+                    logger.info(f"Metadata initialized: session_id={session_id}, user_id={user_id}")
+                
                 sample_rate = metadata['sampleRate']
                 chunk = message[4 + metadata_length:]
                 resampled_chunk = decode_and_resample(chunk, sample_rate, 16000)
@@ -191,3 +274,5 @@ async def stt_websocket(websocket: WebSocket):
             recorder.stop()
             recorder.shutdown()
         logger.info("Recorder shutdown complete")
+        if session_id:
+            merge_session_audio()
