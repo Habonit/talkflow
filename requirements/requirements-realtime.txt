@@ -1,0 +1,19 @@
+-r requirements-core.txt
+
+# ==========================
+# RealtimeSTT Components
+# ==========================
+torch
+torchvision
+torchaudio
+transformers
+faster-whisper
+openwakeword
+websockets
+websocket-client
+PyAudio
+pvporcupine
+webrtcvad-wheels
+halo
+soundfile
+huggingface_hub[hf_xet]

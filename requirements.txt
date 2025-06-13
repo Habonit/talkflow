@@ -1,23 +1,37 @@
-# Core
+# requirements 합본본
+
+# =====================
+# Core Dependencies
+# =====================
 fastapi
 uvicorn
+requests
+redis
+numpy<2.0.0
+scipy
+tqdm==4.65.0
+colorama
+loguru
 
-# RealtimeSTT dependencies
-torch 
-torchvision 
+# ==========================
+# RealtimeSTT Components
+# ==========================
+torch
+torchvision
 torchaudio
 transformers
 faster-whisper
 openwakeword
-numpy<2.0.0
-scipy
 websockets
 websocket-client
-colorama
 PyAudio
 pvporcupine
 webrtcvad-wheels
 halo
 soundfile
 huggingface_hub[hf_xet]
-tqdm==4.65.0
+
+# ==========================
+# LLM Agent 
+# ==========================
+openai
