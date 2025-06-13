@@ -12,3 +12,7 @@ logs/
 requirements.txt
 
 __pycache__
+
+RealtimeSTT/
+
+data/

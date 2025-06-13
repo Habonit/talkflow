@@ -4,6 +4,12 @@ models
 # 데이터 저장 폴더
 archive/
 
+# 로그 폴더
+logs/
+
+RealtimeSTT/
+data/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
