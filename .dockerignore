@@ -1,1 +1,14 @@
+archive/
+
+client/
+
 models/
+
+archive/
+
+logs/
+*.log
+
+requirements.txt
+
+__pycache__
