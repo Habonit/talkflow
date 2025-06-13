@@ -4,7 +4,7 @@ services:
   stt_server_1:
     build:
       context: .
-      dockerfile: docker/dockerfile
+      dockerfile: docker/backend_realtimestt/dockerfile
       args:
         APP_PORT: ${STT_PORT_1}
     container_name: stt_server_1
@@ -16,15 +16,47 @@ services:
     environment:
       - APP_PORT=${STT_PORT_1}
       - CUDA_VISIBLE_DEVICES=${GPU_1}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_DB_STT=${REDIS_DB_STT_1}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     volumes:
       - ./models:/root/.cache
+      - ./logs/stt_server_1:/app/logs 
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/docs"]
+      test: ["CMD", "curl", "-f",  "http://${STT_HOST_1}:${STT_PORT_1}/docs"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    restart: unless-stopped
+
+  llm_container:
+    build:
+      context: .
+      dockerfile: docker/llm_agent/Dockerfile
+    container_name: llm_container
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_DB_STT=${REDIS_DB_STT_1}
+      - REDIS_DB_LLM=${REDIS_DB_LLM_1}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./logs/llm_container:/app/logs
+    restart: unless-stopped
   # stt_server_2:
   #   build:
   #     context: .

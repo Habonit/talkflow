@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    curl git && \
+    rm -rf /var/lib/apt/lists/*
+
+# requirements.txt 파일 복사
+COPY requirements requirements
+RUN pip install --no-cache-dir -r requirements/requirements-llm.txt
+
+# 코드 복사
+COPY . .
+
+CMD ["python", "llm_agent.py"]
