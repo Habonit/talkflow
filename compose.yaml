@@ -23,6 +23,7 @@ services:
     volumes:
       - ./models:/root/.cache
       - ./logs/stt_server_1:/app/logs 
+      - ./data/audio_1:/app/audio
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f",  "http://${STT_HOST_1}:${STT_PORT_1}/docs"]
