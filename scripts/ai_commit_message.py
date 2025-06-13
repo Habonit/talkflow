@@ -4,15 +4,12 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# 현재 파일 위치에서 scripts 디렉토리 기준 경로 설정
-scripts_path = Path(__file__).resolve().parent
-env_path = "scripts/.env"
 template_path = "scripts/commit_template.txt"
 
-load_dotenv(dotenv_path=env_path)
+load_dotenv()
 
 api_key = os.getenv("COMMIT_OPENAI_API_KEY")
-model = os.getenv("COMMIT_MODEL", "gpt-4o")
+model = os.getenv("COMMIT_MODEL", "gpt-4o-mini")
 
 if not api_key:
     print("❌ OPENAI_API_KEY가 설정되어 있지 않습니다.")
