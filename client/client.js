@@ -1,4 +1,4 @@
-let socket = new WebSocket(STT_SERVER_URL); 
+let socket;
 let displayDiv = document.getElementById('textDisplay');
 let server_available = false;
 let mic_available = false;
@@ -6,42 +6,48 @@ let fullSentences = [];
 
 const serverCheckInterval = 5000;
 
-function connectToServer() {
-    socket = new WebSocket(STT_SERVER_URL); 
+function setupWebSocket() {
+    socket = new WebSocket(STT_SERVER_URL);
 
-    socket.onopen = function(event) {
+    socket.onopen = function () {
         server_available = true;
         start_msg();
+        console.log("🟢 WebSocket connected");
     };
 
-    socket.onmessage = function(event) {
+    socket.onmessage = function (event) {
         let data = JSON.parse(event.data);
+        console.log("📨 WebSocket message received:", data);
 
         if (data.type === 'realtime') {
             displayRealtimeText(data.text, displayDiv);
-        }         
-        
+        }
+
         else if (data.type === 'fullSentence') {
             let sentenceSpan = document.createElement('span');
             sentenceSpan.textContent = data.text + " ";
         
             let labelSpan = document.createElement('span');
-            labelSpan.textContent = `🏷️ (${data.label}) `;
+            labelSpan.textContent = `🏷️ ${data.label} ⏱️ ${data.stt_latency.toFixed(2)}s`;
         
             sentenceSpan.className = fullSentences.length % 2 === 0 ? 'yellow' : 'cyan';
             sentenceSpan.appendChild(labelSpan);
         
-            // ✅ 줄바꿈 유지, 색상 구분 제거
             let wrapper = document.createElement('div');
             wrapper.appendChild(sentenceSpan);
         
             fullSentences.push(wrapper.outerHTML);
             displayRealtimeText("", displayDiv);
-        }        
+        }
     };
 
-    socket.onclose = function(event) {
+    socket.onclose = function (event) {
         server_available = false;
+        console.warn("🔴 WebSocket closed:", event);
+    };
+
+    socket.onerror = function (err) {
+        console.error("❌ WebSocket error:", err);
     };
 }
 
@@ -60,46 +66,45 @@ function start_msg() {
 }
 
 setInterval(() => {
-    if (!server_available) {
-        connectToServer();
+    if (!server_available || socket.readyState === WebSocket.CLOSED) {
+        setupWebSocket();
     }
 }, serverCheckInterval);
 
-start_msg();
-
-socket.onopen = function(event) {
-    server_available = true;
-    start_msg();
-};
+setupWebSocket();  // ✅ 최초 연결 시도
+start_msg();       // 초기 메시지 출력
 
 navigator.mediaDevices.getUserMedia({ audio: true })
-.then(stream => {
-    let audioContext = new AudioContext();
-    let source = audioContext.createMediaStreamSource(stream);
-    let processor = audioContext.createScriptProcessor(256, 1, 1);
+    .then(stream => {
+        let audioContext = new AudioContext();
+        let source = audioContext.createMediaStreamSource(stream);
+        let processor = audioContext.createScriptProcessor(256, 1, 1);
 
-    source.connect(processor);
-    processor.connect(audioContext.destination);
-    mic_available = true;
-    start_msg();
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+        mic_available = true;
+        start_msg();
 
-    processor.onaudioprocess = function(e) {
-        let inputData = e.inputBuffer.getChannelData(0);
-        let outputData = new Int16Array(inputData.length);
+        processor.onaudioprocess = function (e) {
+            let inputData = e.inputBuffer.getChannelData(0);
+            let outputData = new Int16Array(inputData.length);
 
-        for (let i = 0; i < inputData.length; i++) {
-            outputData[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
-        }
+            for (let i = 0; i < inputData.length; i++) {
+                outputData[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
+            }
 
-        if (socket.readyState === WebSocket.OPEN) {
-            let metadata = JSON.stringify({ sampleRate: audioContext.sampleRate });
-            let metadataBytes = new TextEncoder().encode(metadata);
-            let metadataLength = new ArrayBuffer(4);
-            let metadataLengthView = new DataView(metadataLength);
-            metadataLengthView.setInt32(0, metadataBytes.byteLength, true);
-            let combinedData = new Blob([metadataLength, metadataBytes, outputData.buffer]);
-            socket.send(combinedData);
-        }
-    };
-})
-.catch(e => console.error(e));
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                let metadata = JSON.stringify({ sampleRate: audioContext.sampleRate });
+                let metadataBytes = new TextEncoder().encode(metadata);
+                let metadataLength = new ArrayBuffer(4);
+                let metadataLengthView = new DataView(metadataLength);
+                metadataLengthView.setInt32(0, metadataBytes.byteLength, true);
+                let combinedData = new Blob([metadataLength, metadataBytes, outputData.buffer]);
+                socket.send(combinedData);
+            }
+        };
+    })
+    .catch(e => {
+        console.error("🎤 Microphone error:", e);
+        displayRealtimeText("❌ Microphone access denied", displayDiv);
+    });
