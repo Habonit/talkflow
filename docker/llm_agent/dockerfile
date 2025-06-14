@@ -13,4 +13,4 @@ RUN pip install --no-cache-dir -r requirements/requirements-llm.txt
 # 코드 복사
 COPY . .
 
-CMD ["python", "llm_agent.py"]
+CMD ["python", "llm_agent/llm_agent.py"]

@@ -20,4 +20,4 @@ ENV APP_PORT=$APP_PORT
 
 EXPOSE ${APP_PORT}
 
-ENTRYPOINT sh -c 'uvicorn main:app --host 0.0.0.0 --port ${APP_PORT}'
+ENTRYPOINT sh -c 'uvicorn backend_realtimestt.main:app --host 0.0.0.0 --port ${APP_PORT}'
