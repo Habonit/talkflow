@@ -58,6 +58,31 @@ services:
     volumes:
       - ./logs/llm_container:/app/logs
     restart: unless-stopped
+
+  proxy_server:
+    build:
+      context: .
+      dockerfile: docker/backend_proxy/dockerfile
+      args:
+        APP_PORT: ${PROXY_PORT}
+    container_name: proxy_server
+    ports: 
+      - "${PROXY_PORT}:${PROXY_PORT}"
+    env_file:
+      - .env
+    environment:
+      - APP_PORT=${PROXY_PORT}
+      - REALTIME_STT_URL=${REALTIME_STT_URL}
+    volumes:
+      - ./logs/proxy_server:/app/logs
+    depends_on:
+      - stt_server_1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://${PROXY_HOST}:${PROXY_PORT}/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   # stt_server_2:
   #   build:
   #     context: .
