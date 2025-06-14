@@ -9,8 +9,6 @@ torchaudio
 transformers
 faster-whisper
 openwakeword
-websockets
-websocket-client
 PyAudio
 pvporcupine
 webrtcvad-wheels
